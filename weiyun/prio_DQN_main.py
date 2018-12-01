@@ -55,7 +55,7 @@ def run_env(env, agent):
         plt.ion()
         plt.show()
 
-    for episode in range(50000):
+    for episode in range(1000):
         action = trans_action(agent.choose_action(observation))
 
         observation_, reward, done = agent.take_a_step(observation, action)
@@ -75,7 +75,7 @@ def run_env(env, agent):
 
         step += 1
 
-        if len(env.queue) > 10 and TRAINING:
+        if len(env.queue) > 20 and TRAINING:
             env.shutdown_generate_user()
 
             while not done:
@@ -86,7 +86,8 @@ def run_env(env, agent):
             observation = env.reset()
             print('env reset, thread id : %d' % env.thread_id)
 
-    env.stop_generate_user()
+    # env.stop_generate_user()
+    env.shutdown_generate_user()
 
     # if plt_flag:
     #     agent.plot_cost()
@@ -119,7 +120,7 @@ if __name__ == '__main__':
 
     env = OnlineWyEnv(graphs=graphs, prioritized=True, memory_size=MEMORY_SIZE)
 
-    sess = tf.Session()
+    # sess = tf.Session()
     with tf.variable_scope('DQN_with_prioritized_replay'):
         agent = DQNPrioritizedReplay(env.n_actions, env.n_features, env,
                                      memory_size=MEMORY_SIZE,
@@ -128,11 +129,11 @@ if __name__ == '__main__':
                                      e_greedy=0.9,
                                      replace_target_iter=200,
                                      e_greedy_increment=0.3 / 100,
-                                     sess=sess,
+                                     # sess=sess,
                                      prioritized=True,
                                      output_graph=True,
                                      training=TRAINING
         )
-    sess.run(tf.global_variables_initializer())
+    # sess.run(tf.global_variables_initializer())
 
     run_env(env, agent)

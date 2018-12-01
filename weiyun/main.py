@@ -17,7 +17,7 @@ def run_env(env, agent):
     # plt.ion()
     # plt.show()
 
-    for episode in range(1000):
+    for episode in range(500):
 
         # observation = env.reset()WWWWWWWW
 
@@ -44,7 +44,7 @@ def run_env(env, agent):
 
         step += 1
 
-    env.stop_generate_user()
+    env.shutdown_generate_user()
 
     cp_time_record = [_[0] for _ in env.plt_record]
     queue_time_record = [_[1] for _ in env.plt_record]

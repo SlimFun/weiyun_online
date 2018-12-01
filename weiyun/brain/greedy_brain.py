@@ -10,7 +10,7 @@ from weiyun.utils.matrix_utils import *
 MAX_CORE = 10
 MAX_BANDWIDTH = 10
 
-DISCOUNT = 0.9
+DISCOUNT = 0.3
 
 class GreedyPolicy:
     def __init__(self, env):

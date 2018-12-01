@@ -22,7 +22,7 @@ TOTAL_NODE = 15
 
 POOL_SIZE = 2000
 
-POISSON_RATE = 9.0 / 1
+POISSON_RATE = 11.0 / 1
 MAX_QUEUE_SIZE = 50
 
 class User:
@@ -76,7 +76,7 @@ class OnlineWyEnv:
         #   start_excu_time,
         # }
         if self.prioritized:
-            self.memory = Memory(capacity=POOL_SIZE)
+            self.memory = Memory(capacity=memory_size)
 
         self.users = {}
         self.is_stop_generate_user = True
@@ -84,21 +84,25 @@ class OnlineWyEnv:
         self.n_actions = MAX_CORE * MAX_BANDWIDTH
         # n_feature = len(state)
         self.n_features = 3
-        self.experience_pool_size = POOL_SIZE
+        self.experience_pool_size = memory_size
         self.experience_pool = np.zeros((self.experience_pool_size, self.n_features * 2 + 2))
         self.transitions = [0 for _ in range(self.experience_pool_size)]
         self.generate_users_thread = None
 
-        self.running_users = []
-
         self.plt_record = []
         self.thread_id = 0
 
-        self.shutdown_flag = 0
+        self.out = True
+
+        # self.shutdown_flag = 0
+        self.running_users = []
 
     def start_generate_user(self):
         # 如果 thread 没有开始，才开启 thread
-        if self.is_stop_generate_user:
+        # 需要等待前一个 generate 线程彻底结束
+        while not self.out:
+            pass
+        if self.out:
             self.thread_id += 1
             self.generate_users_thread = threading.Thread(target=self._generate_user, args=(self.thread_id, ))
             self.is_stop_generate_user = False
@@ -109,18 +113,21 @@ class OnlineWyEnv:
         self.is_stop_generate_user = True
 
     def shutdown_generate_user(self):
-        self.is_stop_generate_user = True
-        self.shutdown_flag = self.thread_id
-        # print('shunt down : %d' % self.shutdown_flag)
+        self.queue = [self._choose_user_from_queue()]
+        logger.info('shutdown_env : %s' % self.queue)
+        self.stop_generate_user()
 
     def _generate_user(self, thread_id):
         id = 0
+        self.out = False
         while not self.is_stop_generate_user:
             nt = self._next_time(POISSON_RATE)
             time.sleep(nt)
-            # print('thread id : %d, shutdown flag : %d' % (thread_id, self.shutdown_flag))
-            if thread_id == self.shutdown_flag:
+            if self.is_stop_generate_user:
                 break
+            # print('thread id : %d, shutdown flag : %d' % (thread_id, self.shutdown_flag))
+            # if thread_id == self.shutdown_flag:
+            #     break
             self._assert_graphs()
             graph_id = random.randint(0, len(self.graphs)-1)
             user = User(user_id=id, graph=self.graphs[graph_id], graph_id=graph_id)
@@ -128,6 +135,7 @@ class OnlineWyEnv:
             self.queue.append(user.user_id)
             logger.info('thread id : %d , generate user : %d; queue : %s' % (thread_id, id, self.queue))
             id += 1
+        self.out = True
 
     def _assert_graphs(self):
         self.graphs = self._generate_graphs() if self.graphs is None else self.graphs
@@ -154,14 +162,15 @@ class OnlineWyEnv:
     # 返回 observation
     # observation 格式：[user, n_core_left, n_bandwidth_left]
     def reset(self):
+        while len(self.running_users) !=0:
+            pass
+        self.running_users = []
         self.n_core_left = TOTAL_CORE
         self.n_bandwidth_left = TOTAL_BANDWIDTH
         self.queue = []
         # self.users = {}
 
         self.start_generate_user()
-
-        self.running_users = []
 
         user_id = self._choose_user_from_queue()
         # user = self.users[user_id]
@@ -206,7 +215,7 @@ class OnlineWyEnv:
 
     # 首先确定分配给用户 graph_id 的资源后，计算该用户所需的计算时间，
     # 然后开启一个线程计时，计时结束更新环境资源数量，并 pop 等待队列
-    def _start_process_user(self, user, s, action, next_user_id, queue_len):
+    def _start_process_user(self, user, s, action, next_user_id, queue_len, done):
         user.queue_time = time.time() - user.generate_time
         graph = self.graphs[user.graph_id]
 
@@ -215,60 +224,49 @@ class OnlineWyEnv:
         self.queue.pop(0)
         logger.info('start process user : %d, cp_time : %f, queue : %s ; action : <%d, %d>' % (user.user_id, cp_time, self.queue, action[0], action[1]))
 
+        t = threading.Thread(target=self._process_user, args=(user, cp_time, s, action, next_user_id, queue_len, done))
         self.running_users.append(user.user_id)
-        t = threading.Thread(target=self._process_user, args=(user, cp_time, s, action, next_user_id, queue_len))
         t.start()
-        # t.join()
 
-    def _process_user(self, user, cp_time, s, action, next_user_id, queue_len):
-        # if is_stop_generate_user:
-        #     self._release_user_resources(user)
+    def _process_user(self, user, cp_time, s, action, next_user_id, queue_len, done):
+
+        # 从 sleep 中醒来后发现 env 已经 reset 了，直接返回，不再执行该 user_thread
+        # if user.user_id not in self.running_users:
         #     return
-        time.sleep(cp_time)
-        if user.user_id not in self.running_users:
-            return
-        self.running_users.remove(user.user_id)
-        # cloud.CORE_NUM = user.assign_n_core
-        # trans.BAND_WIDTH = user.assign_n_bandwidth
+        # self.running_users.remove(user.user_id)
         cloud = Cloud(core_num=user.assign_n_core)
         trans = Trans(cloud, band_width=user.assign_n_bandwidth)
         cp_len, last = rp_time.ours(user.graph[0], user.graph[1], user.graph[2], cloud, trans)
-        # print('cp_len : %f' % cp_len)
 
-        is_done = len(self.queue) == 0 and self.is_stop_generate_user
-        self._release_user_resources(user)
+        # is_done = len(self.queue) == 0 and self.is_stop_generate_user
 
-        # if is_done:
-        #     total_time = 0
-        #     total_users = 0
-        #     total_queue_time = 0
-        #     for e in self.transitions:
-        #         if e != 0:
-        #             total_time += e['run_time'] + e['next_user_queue_time']
-        #             total_queue_time += e['user'].queue_time
-        #             total_users += 1
-        #     logger.info('total generate %d users, average time : %f, queue time occupy %f' % (total_users, total_time / total_users * 1.0, total_queue_time / total_time))
-        # else:
-        if not is_done:
-            next_user_queue_time = 0
-            while next_user_id is None:
+        if not done:
+            # 这里貌似还会有问题？？？？当进入循环等待后，shutdown env 会使得此处产生死循环
+            # while (next_user_id is None) and (not self.is_stop_generate_user):
+            if (next_user_id is None) and (not self.is_stop_generate_user):
                 next_user_id = self._choose_user_from_queue()
             # 更新当前 experience 的时机：当前 user 执行完毕（得到执行时间）并且下一个 user 开始执行（得到下一个 user 的排队时间）
             # 等待下一个 user 开始执行
-            while self.users[next_user_id].queue_time is None:
+            while next_user_id != -1 and (self.users[next_user_id].queue_time is None):
                 pass
-            next_user_queue_time = self.users[next_user_id].queue_time
-            # self.experience_pool.append({
-            #     'user' : user,
-            #     'user_id' : user.user_id,
-            #     's' : s,
-            #     'action' : action,
-            #     'run_time' : cp_len,
-            #     'next_user_queue_time' : next_user_queue_time,
-            #     'reward' : cp_len + next_user_queue_time,
-            #     's_' : self.users[next_user_id].state
-            # })
-            self.store_transition(user, s, cp_len, next_user_queue_time, self.users[next_user_id].state, queue_len, a=action)
+            print("next_user_id : %d" % next_user_id)
+            if next_user_id == -1:
+                self.store_transition(done, user, s, cp_len, 0,
+                                  user.state,
+                                  queue_len, a=action)
+            else:
+                next_user_queue_time = self.users[next_user_id].queue_time
+                self.store_transition(done, user, s, cp_len, next_user_queue_time, self.users[next_user_id].state, queue_len, a=action)
+
+            time.sleep(cp_time)
+            self._release_user_resources(user)
+        else:
+            self.store_transition(done, user, s, cp_len, 0,
+                                  user.state,
+                                  queue_len, a=action)
+            # self.store_transition(done, user, s, cp_len, 0, [user.state[0] - user.assign_n_core, user.state[1] - user.assign_n_bandwidth], queue_len, a=action)
+        logger.info('end process user : %d, n_core_left : %f, n_bandwidth_left : %f, queue : %s' % (user.user_id, self.n_core_left, self.n_bandwidth_left, self.queue))
+        self.running_users.remove(user.user_id)
 
     def _store_transition_without_prioritized(self, experience):
         # 总 memory 大小是固定的，如果超出总大小，旧 memory 被新 memory 替换
@@ -279,24 +277,22 @@ class OnlineWyEnv:
     def _store_transition_with_prioritized(self, experience):
         self.memory.store(experience)  # have high priority for newly arrived transition
 
-    def store_transition(self, user, s, run_time, queue_time, s_, queue_len, a):
+    def store_transition(self, done, user, s, run_time, queue_time, s_, queue_len, a):
         if not hasattr(self, 'memory_counter'):
             self.memory_counter = 0
 
-        punish = 300 - user.user_id if queue_len == MAX_QUEUE_SIZE - 1 else 0
-        if queue_len == MAX_QUEUE_SIZE - 1:
+        punish = 300 - user.user_id if done else 0
+        if done:
             print('punish : %d' % punish)
-        elif queue_len > MAX_QUEUE_SIZE - 1:
-            return
-        # experience = np.hstack([s, (a[0] - 1) * 10.0 + (a[1] - 1), 500.0 - (7 * run_time + 3 * queue_time), s_])
-        # experience = np.hstack([s, (a[0] - 1) * 10.0 + (a[1] - 1), 300.0 - (20 * run_time) - 10 * punish, s_])
         # experience = np.hstack([s, (a[0] - 1) * 10.0 + (a[1] - 1), 300.0 - (20 * run_time) - 10 * punish, s_])
         experience = np.hstack([s, (a[0] - 1) * 10.0 + (a[1] - 1), 300.0 - (20 * run_time), s_])
+        if np.shape(experience)[0] == 6:
+            raise TypeError('experience : %s, user.id : %d, state : %s' % (experience, user.user_id, user.state))
         if self.prioritized:
             self._store_transition_with_prioritized(experience)
         else:
             self._store_transition_without_prioritized(experience)
-        logger.info('user : %d, action : <%d, %d>, time : %f + %f = %f' % (user.user_id, user.assign_n_core, user.assign_n_bandwidth, run_time, queue_time, run_time + queue_time))
+        # logger.info('user : %d, action : <%d, %d>, time : %f + %f = %f' % (user.user_id, user.assign_n_core, user.assign_n_bandwidth, run_time, queue_time, run_time + queue_time))
 
         self.memory_counter += 1
 
@@ -305,7 +301,7 @@ class OnlineWyEnv:
             'user': user,
             'user_id': user.user_id,
             'run_time': run_time,
-            'next_user_queue_time': queue_time
+            # 'next_user_queue_time': queue_time
         }
 
         if self.memory_counter % 100 == 0:
@@ -314,23 +310,18 @@ class OnlineWyEnv:
             total_queue_time = 0
             for e in self.transitions:
                 if e != 0:
-                    total_time += e['run_time'] + e['next_user_queue_time']
+                    total_time += e['run_time'] + e['user'].queue_time
                     total_queue_time += e['user'].queue_time
                     total_users += 1
             logger.info('epoch %d : average time : %f , queue time occupy %f' % (
             int(self.memory_counter / 300), total_time / total_users * 1.0, total_queue_time / total_time))
-            # if len(self.plt_record) < 300:
-            #     self.plt_record.append(total_time / total_users * 1.0)
-            # else:
-            #     self.plt_record[]
             self.plt_record.append([total_time / total_users * 1.0, total_queue_time / total_users * 1.0])
 
     def _release_user_resources(self, user):
         self.n_core_left += user.assign_n_core
         self.n_bandwidth_left += user.assign_n_bandwidth
 
-        # self.queue.pop(0)
-        logger.info('end process user : %d, n_core_left : %f, n_bandwidth_left : %f, queue : %s' % (user.user_id, self.n_core_left, self.n_bandwidth_left, self.queue))
+
 
     # action 格式： [assign_n_core, assign_n_bandwidth]
     # return [observation, reward, done]
@@ -351,15 +342,16 @@ class OnlineWyEnv:
         user.assign_n_bandwidth = assign_n_bandwidth
 
         logger.info('assign user n_core : %f, n_bandwidth : %f; n_core_left : %f, n_bandwidth_left : %f' % (assign_n_core, assign_n_bandwidth, self.n_core_left, self.n_bandwidth_left))
-        # cp_time = self._computation_time(graph)
-        # state_ = [self.users[next_user_id] if next_user_id is not None else None, self.n_core_left, self.n_bandwidth_left]
-        self._start_process_user(user, s, action, next_user_id, len(self.queue))
+        done = self.is_stop_generate_user
+        self._start_process_user(user, s, action, next_user_id, len(self.queue), done)
 
-        is_done = (len(self.queue) == 0) and self.is_stop_generate_user
+        # is_done = (len(self.queue) == 0) and self.is_stop_generate_user
 
         next_user_id = -1
-        if not is_done or not self.is_stop_generate_user:
+        if not done:
             next_user_id = self._choose_user_from_queue()
-        if len(self.queue) > MAX_QUEUE_SIZE:
-            is_done = True
-        return [self.users[next_user_id].graph_id if next_user_id != -1 else None, self.n_core_left, self.n_bandwidth_left], None, is_done
+        # if not is_done or not self.is_stop_generate_user:
+        #     next_user_id = self._choose_user_from_queue()
+        # if len(self.queue) > MAX_QUEUE_SIZE:
+        #     is_done = True
+        return [self.users[next_user_id].graph_id if next_user_id != -1 else None, self.n_core_left, self.n_bandwidth_left], None, done

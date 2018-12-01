@@ -119,7 +119,9 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
             idx, p, data = self.tree.get_leaf(v)
             prob = p / self.tree.total_p
             ISWeights[i, 0] = np.power(prob/min_prob, -self.beta)
-            b_idx[i], b_memory[i, :] = idx, data
+            # b_idx[i], b_memory[i, :] = idx, data
+            b_idx[i] = idx
+            b_memory[i, :] = data
         return b_idx, b_memory, ISWeights
 
     def batch_update(self, tree_idx, abs_errors):
@@ -157,7 +159,7 @@ class DQNPrioritizedReplay:
         self.memory_size = memory_size
         self.batch_size = batch_size
         self.epsilon_increment = e_greedy_increment
-        self.epsilon = 0 if e_greedy_increment is not None else self.epsilon_max
+        self.epsilon = 0.6 if e_greedy_increment is not None else self.epsilon_max
 
         self.env = env
 
@@ -187,6 +189,10 @@ class DQNPrioritizedReplay:
             tf.summary.FileWriter("logs/", self.sess.graph)
 
         self.cost_his = []
+
+        self.saver = tf.train.Saver()
+        if not self.training:
+            self.restore_model()
 
     def _build_net(self):
         def build_layers(s, c_names, n_l1, w_initializer, b_initializer, trainable):
