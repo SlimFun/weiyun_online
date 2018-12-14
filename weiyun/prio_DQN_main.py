@@ -47,7 +47,6 @@ def summarize_experience(experience_pool):
 
 def run_env(env, agent):
     step = 0
-    observation = env.reset()
     done = False
     if plt_flag:
         fig = plt.figure()
@@ -55,39 +54,45 @@ def run_env(env, agent):
         plt.ion()
         plt.show()
 
-    for episode in range(5000):
-        action = trans_action(agent.choose_action(observation))
+    for episode in range(20):
+        observation = env.reset()
+        done = False
+        while not done:
 
-        observation_, reward, done = agent.take_a_step(observation, action)
+            action = trans_action(agent.choose_action(observation))
 
-        if TRAINING and step > MEMORY_SIZE and step % 50 == 0:
-            agent.learn()
+            observation_, reward, done = agent.take_a_step(observation, action)
 
-        observation = observation_
+            if TRAINING and step > MEMORY_SIZE and step % 50 == 0:
+                agent.learn()
 
-        if step % 150 == 0 and plt_flag:
-            try:
-                ax.lines.remove(lines[0])
-            except Exception:
-                pass
-            lines = ax.plot([_ for _ in range(len(env.plt_record))], [10 - _[0] for _ in env.plt_record], 'r-', lw=5)
-            plt.pause(0.0001)
+            observation = observation_
 
-        step += 1
+            if step % 150 == 0 and plt_flag:
+                try:
+                    ax.lines.remove(lines[0])
+                except Exception:
+                    pass
+                lines = ax.plot([_ for _ in range(len(env.plt_record))], [10 - _[0] for _ in env.plt_record], 'r-', lw=5)
+                plt.pause(0.0001)
 
-        if len(env.queue) > 20 and TRAINING:
-            env.shutdown_generate_user()
+            step += 1
 
-            while not done:
-                action = trans_action(agent.choose_action(observation))
-                observation_, reward, done = agent.take_a_step(observation, action)
-                observation = observation_
+        agent.summary_score(env.score)
 
-            observation = env.reset()
-            print('env reset, thread id : %d' % env.thread_id)
+            # if len(env.queue) > 50 and TRAINING:
+            #     env.shutdown_generate_user()
+            #
+            #     while not done:
+            #         action = trans_action(agent.choose_action(observation))
+            #         observation_, reward, done = agent.take_a_step(observation, action)
+            #         observation = observation_
+            #
+            #     observation = env.reset()
+            #     print('env reset, thread id : %d' % env.thread_id)
 
     # env.stop_generate_user()
-    env.shutdown_generate_user()
+    # env.shutdown_generate_user()
 
     # if plt_flag:
     #     agent.plot_cost()
@@ -100,15 +105,15 @@ def run_env(env, agent):
         agent.store_model()
         summarize_experience(env.experience_pool)
 
-    while not done:
-
-        action = trans_action(agent.choose_action(observation))
-
-        observation_, reward, done = agent.take_a_step(observation, action)
-
-        observation = observation_
-
-        step += 1
+    # while not done:
+    #
+    #     action = trans_action(agent.choose_action(observation))
+    #
+    #     observation_, reward, done = agent.take_a_step(observation, action)
+    #
+    #     observation = observation_
+    #
+    #     step += 1
 
     print('game over')
 

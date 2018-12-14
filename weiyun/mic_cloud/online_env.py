@@ -22,8 +22,11 @@ TOTAL_NODE = 15
 
 POOL_SIZE = 2000
 
-POISSON_RATE = 11.0 / 1
+POISSON_RATE = 13.0 / 1
 MAX_QUEUE_SIZE = 50
+
+MAX_QUEUE = 50
+MAX_PROCESS_USER = 1000
 
 class User:
     # 对于目前阶段需要传入 graph_id，用 graph_id 的 one-hot 编码来产生 graph_vex
@@ -96,6 +99,8 @@ class OnlineWyEnv:
 
         # self.shutdown_flag = 0
         self.running_users = []
+        self.processed_user = 0
+        self.score = 0
 
     def start_generate_user(self):
         # 如果 thread 没有开始，才开启 thread
@@ -113,6 +118,7 @@ class OnlineWyEnv:
         self.is_stop_generate_user = True
 
     def shutdown_generate_user(self):
+        print('shutdown generate user')
         self.queue = [self._choose_user_from_queue()]
         logger.info('shutdown_env : %s' % self.queue)
         self.stop_generate_user()
@@ -169,6 +175,7 @@ class OnlineWyEnv:
         self.n_bandwidth_left = TOTAL_BANDWIDTH
         self.queue = []
         # self.users = {}
+        self.processed_user = 0
 
         self.start_generate_user()
 
@@ -243,21 +250,22 @@ class OnlineWyEnv:
         if not done:
             # 这里貌似还会有问题？？？？当进入循环等待后，shutdown env 会使得此处产生死循环
             # while (next_user_id is None) and (not self.is_stop_generate_user):
-            if (next_user_id is None) and (not self.is_stop_generate_user):
-                next_user_id = self._choose_user_from_queue()
-            # 更新当前 experience 的时机：当前 user 执行完毕（得到执行时间）并且下一个 user 开始执行（得到下一个 user 的排队时间）
-            # 等待下一个 user 开始执行
-            while next_user_id != -1 and (self.users[next_user_id].queue_time is None):
-                pass
-            print("next_user_id : %d" % next_user_id)
-            if next_user_id == -1:
-                self.store_transition(done, user, s, cp_len, 0,
-                                  user.state,
-                                  queue_len, a=action)
-            else:
-                next_user_queue_time = self.users[next_user_id].queue_time
-                self.store_transition(done, user, s, cp_len, next_user_queue_time, self.users[next_user_id].state, queue_len, a=action)
-
+            # if (next_user_id is None) and (not self.is_stop_generate_user):
+            #     next_user_id = self._choose_user_from_queue()
+            # # 更新当前 experience 的时机：当前 user 执行完毕（得到执行时间）并且下一个 user 开始执行（得到下一个 user 的排队时间）
+            # # 等待下一个 user 开始执行
+            # while next_user_id != -1 and (self.users[next_user_id].queue_time is None):
+            #     pass
+            # print("next_user_id : %d" % next_user_id)
+            # if next_user_id == -1:
+            #     self.store_transition(done, user, s, cp_len, 0,
+            #                       user.state,
+            #                       queue_len, a=action)
+            # else:
+            #     next_user_queue_time = self.users[next_user_id].queue_time
+            #     self.store_transition(done, user, s, cp_len, next_user_queue_time, self.users[next_user_id].state, queue_len, a=action)
+            #
+            self.store_transition(done, user, s, cp_len, 0, user.state, queue_len, a=action)
             time.sleep(cp_time)
             self._release_user_resources(user)
         else:
@@ -267,6 +275,7 @@ class OnlineWyEnv:
             # self.store_transition(done, user, s, cp_len, 0, [user.state[0] - user.assign_n_core, user.state[1] - user.assign_n_bandwidth], queue_len, a=action)
         logger.info('end process user : %d, n_core_left : %f, n_bandwidth_left : %f, queue : %s' % (user.user_id, self.n_core_left, self.n_bandwidth_left, self.queue))
         self.running_users.remove(user.user_id)
+        self.processed_user += 1
 
     def _store_transition_without_prioritized(self, experience):
         # 总 memory 大小是固定的，如果超出总大小，旧 memory 被新 memory 替换
@@ -281,11 +290,13 @@ class OnlineWyEnv:
         if not hasattr(self, 'memory_counter'):
             self.memory_counter = 0
 
-        punish = 300 - user.user_id if done else 0
+        punish = 600 - user.user_id if done else 0
         if done:
             print('punish : %d' % punish)
         # experience = np.hstack([s, (a[0] - 1) * 10.0 + (a[1] - 1), 300.0 - (20 * run_time) - 10 * punish, s_])
-        experience = np.hstack([s, (a[0] - 1) * 10.0 + (a[1] - 1), 300.0 - (20 * run_time), s_])
+        experience = np.hstack([s, (a[0] - 1) * 10.0 + (a[1] - 1), 1000.0 - (20 * run_time) - punish, s_])
+        if punish != 0:
+            self.score = 1000.0 - (20 * run_time) - punish
         if np.shape(experience)[0] == 6:
             raise TypeError('experience : %s, user.id : %d, state : %s' % (experience, user.user_id, user.state))
         if self.prioritized:
@@ -325,6 +336,7 @@ class OnlineWyEnv:
     # return [observation, reward, done]
     def step(self, action):
         assign_n_core, assign_n_bandwidth = action
+        print('start step')
         user_id = self._choose_user_from_queue()
         next_user_id = self._choose_next_user_from_queue()
 
@@ -347,9 +359,12 @@ class OnlineWyEnv:
 
         next_user_id = -1
         if not done:
+            print('not done')
             next_user_id = self._choose_user_from_queue()
         # if not is_done or not self.is_stop_generate_user:
         #     next_user_id = self._choose_user_from_queue()
         # if len(self.queue) > MAX_QUEUE_SIZE:
         #     is_done = True
+            if len(self.queue) >= MAX_QUEUE or self.processed_user >= MAX_PROCESS_USER:
+                self.shutdown_generate_user()
         return [self.users[next_user_id].graph_id if next_user_id != -1 else None, self.n_core_left, self.n_bandwidth_left], None, done

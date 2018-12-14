@@ -8,7 +8,7 @@ import time
 
 plt_flag = False
 
-TRAINING = False
+TRAINING = True
 
 # return assign_n_cores, assign_n_bandwidths
 def trans_action(action):
@@ -73,7 +73,7 @@ def run_env(env, agent):
 
         step += 1
 
-        if len(env.queue) > 50 and TRAINING:
+        if (len(env.queue) > 50 or env.processed_user >= 500) and TRAINING:
             # env.stop_generate_user()
             env.shutdown_generate_user()
 

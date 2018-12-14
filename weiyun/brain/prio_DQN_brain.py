@@ -186,7 +186,7 @@ class DQNPrioritizedReplay:
             self.sess = sess
 
         if output_graph:
-            tf.summary.FileWriter("logs/", self.sess.graph)
+            self.writer = tf.summary.FileWriter("logs/", self.sess.graph)
 
         self.cost_his = []
 
@@ -233,6 +233,12 @@ class DQNPrioritizedReplay:
         with tf.variable_scope('target_net'):
             c_names = ['target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
             self.q_next = build_layers(self.s_, c_names, n_l1, w_initializer, b_initializer, False)
+
+        with tf.variable_scope('score'):
+            self.score = tf.placeholder(tf.float32, name='score')
+            tf.summary.scalar('score', self.score)
+
+        self.merged = tf.summary.merge_all()
 
     def store_transition(self, s, a, r, s_):
         if self.prioritized:    # prioritized replay
@@ -322,3 +328,10 @@ class DQNPrioritizedReplay:
             n_bandwidth_left = self.env.n_bandwidth_left
 
         return self.env.step(action)
+
+    def summary_score(self, tr):
+        summary_str = self.sess.run(self.merged, feed_dict={
+            self.score : tr
+        })
+        self.writer.add_summary(summary_str, self.learn_step_counter)
+        self.writer.flush()
