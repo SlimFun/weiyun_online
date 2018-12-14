@@ -176,3 +176,5 @@ print(np.shape(arr)[0] == 5)
 # print(acd)
 #
 # print(10.0 - 1.041660 + 0.227654)
+test = [1, 2, 3]
+print(test[1:])

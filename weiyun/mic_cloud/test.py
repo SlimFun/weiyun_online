@@ -13,6 +13,7 @@ import pickle
 import weiyun.mic_cloud.rp_time as rp_time
 import time
 import weiyun.mic_cloud.ACO as ACO
+import csv
 
 # path = '012345'
 # w_vex = []
@@ -500,15 +501,229 @@ def mean_alg(ads, wvs, tp_orders, total_core):
 #     s += cp_len
 # print(s / len(graphs))
 
-def confirm_result():
-    with open('resources_num_test_ours', 'rb') as fp:
-        results_ours = pickle.load(fp)
-    with open('resources_num_test_best', 'rb') as fp:
-        results_best = pickle.load(fp)
-    results = []
-    for i in range(len(results_ours)):
-        ros = results_ours[i]
-        rbs = results_best[i]
-        results.append([sum(ros)/len(ros), sum(rbs)/len(rbs)])
-    print(results)
-confirm_result()
+# def confirm_result():
+#     with open('resources_num_test_ours', 'rb') as fp:
+#         results_ours = pickle.load(fp)
+#     with open('resources_num_test_best', 'rb') as fp:
+#         results_best = pickle.load(fp)
+#     results = []
+#     for i in range(len(results_ours)):
+#         ros = results_ours[i]
+#         rbs = results_best[i]
+#         results.append([sum(ros)/len(ros), sum(rbs)/len(rbs)])
+#     print(results)
+# confirm_result()
+
+# graphs = []
+# for i in range(100):
+#     adj_matrix, w_vex, topo_order = generate_DAG(15)
+#     graphs.append([adj_matrix, w_vex, topo_order])
+# result = []
+# with open('graph_type_topo', 'wb') as fp:
+#     pickle.dump(graphs, fp)
+#
+# for g in graphs:
+#     cloud = Cloud(core_num=2)
+#     trans = Trans(cloud, band_width=2)
+#
+#     cp_len, last = rp_time.ours(g[0], g[1], g[2], cloud, trans)
+#
+#     cloud = Cloud(core_num=3)
+#     trans = Trans(cloud, band_width=3)
+#
+#     cp_len_prime, last_prime = rp_time.ours(g[0], g[1], g[2], cloud, trans)
+#     result.append((cp_len - cp_len_prime) / cp_len)
+#
+# with open('graph_type_topo.csv', 'w', newline='') as f:
+#     writer = csv.writer(f)
+#     writer.writerow(result)
+
+# below_graphs, above_graphs = [], []
+# below_reduce, above_reduce = [], []
+# while len(below_graphs) < 100  or len(above_graphs) < 100:
+#     print('%d : %d' % (len(below_graphs), len(above_graphs)))
+#     adj_matrix, w_vex, topo_order = generate_DAG(15)
+#     cloud = Cloud(core_num=2)
+#     trans = Trans(cloud, band_width=2)
+#     cp_len, last = rp_time.ours(adj_matrix, w_vex, topo_order, cloud, trans)
+#
+#     cloud = Cloud(core_num=3)
+#     trans = Trans(cloud, band_width=3)
+#     cp_len_prime, last_prime = rp_time.ours(adj_matrix, w_vex, topo_order, cloud, trans)
+#     reduce = (cp_len - cp_len_prime) / cp_len
+#     if reduce <= 0.15 and len(below_graphs) < 100:
+#         below_graphs.append([adj_matrix, w_vex, topo_order])
+#         below_reduce.append(reduce)
+#     if reduce > 0.15 and len(above_graphs) < 100:
+#         above_graphs.append([adj_matrix, w_vex, topo_order])
+#         above_reduce.append(reduce)
+#
+# with open('graph_type_topo_below', 'wb') as fp:
+#     pickle.dump(below_graphs, fp)
+# with open('graph_type_topo_above', 'wb') as fp:
+#     pickle.dump(above_graphs, fp)
+# with open('graph_type_topo_below.csv', 'w', newline='') as f:
+#     writer = csv.writer(f)
+#     writer.writerow(below_reduce)
+# with open('graph_type_topo_above.csv', 'w', newline='') as f:
+#     writer = csv.writer(f)
+#     writer.writerow(above_reduce)
+
+# r = []
+# reduces = []
+# for j in range(100):
+#     adj_matrix, w_vex, topo_order = generate_DAG(15)
+#     result = []
+#     for i in range(10):
+#         cloud = Cloud(core_num=i+1)
+#         trans = Trans(cloud, band_width=i+1)
+#         cp_len, last = rp_time.ours(adj_matrix, w_vex, topo_order, cloud, trans)
+#         if i == 0:
+#             result.append(cp_len)
+#         else:
+#             result.append((result[0] - cp_len) / result[0])
+#     reduces.append(sum(result[1:]) / (len(result) - 1))
+#     r.append(result)
+# print(sum(reduces) / len(reduces))
+
+
+
+# with open('graph_type_topo.csv', 'w', newline='') as f:
+#     writer = csv.writer(f)
+#     for result in r:
+#         writer.writerow(result)
+# below_graphs, above_graphs = [], []
+# below_reduce, above_reduce = [], []
+# while len(below_graphs) < 100 or len(above_graphs) < 100:
+#     print('%d : %d' % (len(below_graphs), len(above_graphs)))
+#     adj_matrix, w_vex, topo_order = generate_DAG(15)
+#     cloud = Cloud(core_num=1)
+#     trans = Trans(cloud, band_width=1)
+#     cp_len, last = rp_time.ours(adj_matrix, w_vex, topo_order, cloud, trans)
+#     reduce = []
+#     for i in range(9):
+#         cloud = Cloud(core_num=i + 2)
+#         trans = Trans(cloud, band_width=i + 2)
+#         cp_len_prime, last_prime = rp_time.ours(adj_matrix, w_vex, topo_order, cloud, trans)
+#
+#         reduce.append((cp_len - cp_len_prime) / cp_len)
+#     r = sum(reduce) / len(reduce)
+#     if r > 0.37 and len(above_reduce) < 100:
+#         above_graphs.append([adj_matrix, w_vex, topo_order])
+#         above_reduce.append(reduce)
+#     if r <= 0.37 and len(below_graphs) < 100:
+#         below_graphs.append([adj_matrix, w_vex, topo_order])
+#         below_reduce.append(reduce)
+
+# with open('graph_type_topo_below', 'wb') as fp:
+#     pickle.dump(below_graphs, fp)
+# with open('graph_type_topo_above', 'wb') as fp:
+#     pickle.dump(above_graphs, fp)
+# with open('graph_type_topo_below.csv', 'w', newline='') as f:
+#     writer = csv.writer(f)
+#     writer.writerow(below_reduce)
+# with open('graph_type_topo_above.csv', 'w', newline='') as f:
+#     writer = csv.writer(f)
+#     writer.writerow(above_reduce)
+
+def generate_two_type_graphs(above_num, below_num, above_threshold, below_threshold):
+    below_graphs, above_graphs = [], []
+    while len(below_graphs) < below_num or len(above_graphs) < above_num:
+        print('%d : %d' % (len(below_graphs), len(above_graphs)))
+        adj_matrix, w_vex, topo_order = generate_DAG(15)
+        cloud = Cloud(core_num=1)
+        trans = Trans(cloud, band_width=1)
+        cp_len, last = rp_time.ours(adj_matrix, w_vex, topo_order, cloud, trans)
+
+        cloud = Cloud(core_num=10)
+        trans = Trans(cloud, band_width=10)
+        cp_len_prime, last_prime = rp_time.ours(adj_matrix, w_vex, topo_order, cloud, trans)
+        if cp_len - cp_len_prime > 2 and len(above_graphs) < above_num:
+            above_graphs.append([adj_matrix, w_vex, topo_order])
+        if cp_len - cp_len_prime < 1.5 and len(below_graphs) < below_num:
+            below_graphs.append([adj_matrix, w_vex, topo_order])
+    return below_graphs, above_graphs
+        # reduce = []
+        # pre_cp_len = 0
+        # for i in range(9):
+        #     cloud = Cloud(core_num=i + 2)
+        #     trans = Trans(cloud, band_width=i + 2)
+        #     cp_len_prime, last_prime = rp_time.ours(adj_matrix, w_vex, topo_order, cloud, trans)
+        #
+        #     if i != 0:
+        #         reduce.append((cp_len - cp_len_prime) / cp_len)
+        # r = sum(reduce) / len(reduce)
+        # if r > threshold and len(above_graphs) < above_num:
+        #     above_graphs.append([adj_matrix, w_vex, topo_order])
+        # if r <= threshold and len(below_graphs) < below_num:
+        #     below_graphs.append([adj_matrix, w_vex, topo_order])
+    # below_graphs, above_graphs = [], []
+    # while len(below_graphs) < below_num or len(above_graphs) < above_num:
+    #     print('%d : %d' % (len(below_graphs), len(above_graphs)))
+    #     adj_matrix, w_vex, topo_order = generate_DAG(15)
+    #     cloud = Cloud(core_num=1)
+    #     trans = Trans(cloud, band_width=1)
+    #     cp_len, last = rp_time.ours(adj_matrix, w_vex, topo_order, cloud, trans)
+    #     reduce = []
+    #     pre_cp_len = 0
+    #     for i in range(9):
+    #         cloud = Cloud(core_num=i + 2)
+    #         trans = Trans(cloud, band_width=i + 2)
+    #         cp_len_prime, last_prime = rp_time.ours(adj_matrix, w_vex, topo_order, cloud, trans)
+    #
+    #         if i != 0:
+    #             reduce.append((cp_len - cp_len_prime) / cp_len)
+    #     r = sum(reduce) / len(reduce)
+    #     if r > threshold and len(above_graphs) < above_num:
+    #         above_graphs.append([adj_matrix, w_vex, topo_order])
+    #     if r <= threshold and len(below_graphs) < below_num:
+    #         below_graphs.append([adj_matrix, w_vex, topo_order])
+
+below_graphs, above_graphs = generate_two_type_graphs(100, 100, 2, 1.5)
+
+with open('graph_type_topo_below', 'rb') as fp:
+    below_graphs = pickle.load(fp)
+with open('graph_type_topo_above', 'rb') as fp:
+    above_graphs = pickle.load(fp)
+bg = random.sample(below_graphs)
+ag = random.sample(above_graphs)
+
+results = []
+
+
+# results = []
+# for j in range(len(bg)):
+#     results.append([])
+#     g = bg[j]
+#     for i in range(10):
+#         cloud = Cloud(core_num=i+1)
+#         trans = Trans(cloud, band_width=i+1)
+#         cp_len, last = rp_time.ours(g[0], g[1], g[2], cloud, trans)
+#         results[j].append(cp_len)
+# with open('graph_type_topo_below.csv', 'w', newline='') as f:
+#     writer = csv.writer(f)
+#     for r in results:
+#         writer.writerow(r)
+#
+# results = []
+# for j in range(len(ag)):
+#     results.append([])
+#     g = ag[j]
+#     for i in range(10):
+#         cloud = Cloud(core_num=i + 1)
+#         trans = Trans(cloud, band_width=i + 1)
+#         cp_len, last = rp_time.ours(g[0], g[1], g[2], cloud, trans)
+#         results[j].append(cp_len)
+# with open('graph_type_topo_above.csv', 'w', newline='') as f:
+#     writer = csv.writer(f)
+#     for r in results:
+#         writer.writerow(r)
+
+# for graphs in [bg, ag]:
+#     results.append([])
+#     for g in graphs:
+#         for i in range(10):
+#             cloud = Cloud(core_num=i + 1)
+#             trans = Trans(cloud, band_width=i + 1)
+#             cp_len, last = rp_time.ours(g[0], g[1], g[2], cloud, trans)
+#

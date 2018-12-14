@@ -55,7 +55,7 @@ def run_env(env, agent):
         plt.ion()
         plt.show()
 
-    for episode in range(1000):
+    for episode in range(5000):
         action = trans_action(agent.choose_action(observation))
 
         observation_, reward, done = agent.take_a_step(observation, action)
@@ -127,7 +127,7 @@ if __name__ == '__main__':
                                      learning_rate=0.1,
                                      reward_decay=0.9,
                                      e_greedy=0.9,
-                                     replace_target_iter=200,
+                                     replace_target_iter=20,
                                      e_greedy_increment=0.3 / 100,
                                      # sess=sess,
                                      prioritized=True,

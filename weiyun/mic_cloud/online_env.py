@@ -162,7 +162,7 @@ class OnlineWyEnv:
     # 返回 observation
     # observation 格式：[user, n_core_left, n_bandwidth_left]
     def reset(self):
-        while len(self.running_users) !=0:
+        while len(self.running_users) != 0:
             pass
         self.running_users = []
         self.n_core_left = TOTAL_CORE
@@ -320,8 +320,6 @@ class OnlineWyEnv:
     def _release_user_resources(self, user):
         self.n_core_left += user.assign_n_core
         self.n_bandwidth_left += user.assign_n_bandwidth
-
-
 
     # action 格式： [assign_n_core, assign_n_bandwidth]
     # return [observation, reward, done]
